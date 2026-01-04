@@ -1,0 +1,132 @@
+# general settings
+name: SCNet
+model_type: ImageRestorationModel
+scale: 1
+num_gpu: 1
+manual_seed:
+
+# dataset and data loader settings
+datasets:
+  train:
+    name:
+    type: PairedImageDataset
+    in_ch: "Image Channel"
+    dataroot_gt: "Ground Truth file path"
+    dataroot_lq: "Speckle Images file path"
+    geometric_augs:
+
+    finetune_augment:
+    finetune_start_iteration:
+    finetune_start_iteration_lr:
+
+    filename_tmpl: '{}'
+    io_backend:
+      type: disk
+
+    # data loader4
+    use_shuffle:
+    num_worker_per_gpu:
+    batch_size_per_gpu:
+
+    ### -------------Progressive training--------------------------
+    gt_size:    # Max patch size for progressive training
+    ### ------------------------------------------------------------
+
+    dataset_enlarge_ratio:
+    prefetch_mode: ~
+
+  val:
+    name:
+    type: PairedImageDataset
+    in_ch: 1
+    dataroot_gt:
+    dataroot_lq:
+    io_backend:
+      type: disk
+
+# network structures
+network_g:
+  type: SCNet
+  width: 84
+  enc_blk_nums: [6, 8, 10, 12]
+  middle_blk_num: 24
+  dec_blk_nums: [4, 4, 6, 8]
+  GCE_CONVS_nums: [4, 4, 4, 4]
+
+# path
+path:
+  pretrain_network_g: "Pretrained model loder"
+  strict_load_g: true
+  resume_state:
+
+# training settings
+train:
+  total_iter: 500000
+  warmup_iter: -1 # no warm up
+  use_grad_clip: true
+
+
+  scheduler:
+    type: CosineAnnealingRestartCyclicLR
+    periods: [182000, 318000]
+    restart_weights: [1,1]
+    eta_mins: [0.00001, 0.000001]
+    eta_maxs: [0.0006 ,0.00001]
+  
+  mixing_augs:
+    mixup: true
+    mixup_beta: 1.2
+    use_identity: true
+
+  optim_g:
+    type: Adam
+    lr: !!float 6e-4
+    weight_decay: 0.
+    betas: [0.9, 0.999]
+  
+  # losses
+  pixel_opt:
+    type: PSNRLoss
+    loss_weight: 1
+    reduction: mean
+
+  s3im_opt:
+    type: SCIMLoss
+    patch_size: 64
+    sampling_mode: 'grid'
+    default_loss_weight: 16.0
+    grid_size: [4,4]
+    num_patches: 30
+
+# validation settings
+val:
+  window_size: 8
+  val_freq: !!float 1e3
+  save_img: False
+  gray2bgr: False
+  use_image: true
+  max_minibatch: 8
+
+  metrics:
+    psnr: # metric name, can be arbitrary
+      type: calculate_psnr
+      crop_border: 0
+
+    ssim: # metric name, can be arbitrary
+      type: calculate_ssim
+      crop_border: 0
+
+
+# logging settings
+logger:
+  print_freq:
+  save_checkpoint_freq:
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+# dist training settings
+dist_params:
+  backend: nccl
+  port: 29500
